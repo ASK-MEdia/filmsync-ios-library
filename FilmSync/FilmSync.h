@@ -27,29 +27,56 @@
 @interface FilmSync : NSObject
 
 
-@property (nonatomic, assign) id<FilmSyncDelegate> delegate;
-@property (nonatomic, retain) NSString *sourceID; //Unique identifier that relates directly to specific content source. Required. (licensing number)
-@property (nonatomic, retain) NSURL *contentSourceURL; //Parent URL to source of content SON file (ex. http://docsinhand.com/api/12345.json)
-@property (nonatomic, assign) long int timeOut; //The specified time the app will continue to listen for source tones. Default, 120 seconds.
+@property (nonatomic, assign) id<FilmSyncDelegate> delegate; //FilmSync Delegate
+@property (nonatomic, assign) float timeOut; //The specified time the app will continue to listen for source tones. Default, 120 seconds.
 
+#pragma mark - Singleton
+
+//Singleton object of class
 + (FilmSync*) sharedFilmSyncManager;
+
+#pragma mark - Listener
+
+//Frequency updater
 - (void) frequencyChangedWithValue:(float)newFrequency;
+// start filmSync listener
 - (void) startListener;
+// stop filmSync listener
 - (void) stopListener;
+// check listener state
+- (BOOL) isListenerRunning;
 
-//SDK Methods
-//Returns the number of cards to be delivered during the entire duration of the source content (via JSON count of objects). Number
--(int) getTotalCards;
-//Returns the numerical id of current marker number detected from video source. A 32bit number . Returns null if no source detected.
--(NSString *)getCurrentCard;
-//Returns the numerical id of previous marker number detected from the source content. This may not be in numerical order as user can move throughout the video source. If first marker, returns null.
--(NSString *)getPreviousCard;
-//Returns array of hzs of the last detected signal. Length max of 2.) ex. [18200, 19400]
--(NSArray *)getTonesDetected;
-//Returns the ID of the signal detected
--(NSString *)getSignalDetected;
+#pragma mark - APIs
+/** Sets the Base URL for API connection.
+ * @param - base url
+ */
+-(void)setConnectionURL:(NSString *)url;
 
+/** Sets the API Secret . Required. (licensing number).
+ * @param - API Secret
+ */
+-(void)setAPISecret:(NSString *)ApiKey;
 
+/** API to authenticate.
+ * @return - completionHandler: status - "active" if the APISecret is vaild , otherwise "expired".
+ * @note ensure that you have set the API SECRET before calling this;
+ * this method will automaticaly called, when the session is expired.
+ */
+-(void)serverAPI_authenticate_CompletionHandler:(void (^)(NSString *status))completionHandler;
+
+/** API to get card details.
+ * @param - card id
+ * @return - completionHandler: cardDict - Dictionary with CardData.
+ * cardDict = nil , If the API Secret is invalid.
+ */
+-(void)serverAPI_getCard:(NSString *)cardID andCompletionHandler:(void (^)(NSDictionary* projectDict))completionHandler;
+
+/** API to retrieve all cards for a projectID.
+ * @param - project id
+ * @return completionHandler: projectDict - Dictionary with Project details and Array of all cards.
+ * projectDict = nil , If the API Secret is invalid.
+ */
+-(void)serverAPI_getAllCardsForProject:(NSString *)projectID andCompletionHandler:(void (^)(NSDictionary* cardsDict))completionHandler;
 
 
 @end

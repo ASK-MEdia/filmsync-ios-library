@@ -34,7 +34,6 @@
 
 
 @interface RIOInterface : NSObject {
-	//UIViewController *selectedViewController;
 	FilmSync *listener;
 	
 	AUGraph processingGraph;

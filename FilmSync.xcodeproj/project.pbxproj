@@ -22,7 +22,6 @@
 
 /* Begin PBXBuildFile section */
 		093A051D19C714AA00A62EC0 /* FilmSync.h in CopyFiles */ = {isa = PBXBuildFile; fileRef = 09B400D619C1841700A4AF13 /* FilmSync.h */; };
-		094961411A0A189400FFCA49 /* FilmSyncWebService.m in Sources */ = {isa = PBXBuildFile; fileRef = 094961401A0A189400FFCA49 /* FilmSyncWebService.m */; };
 		09B400D919C1841700A4AF13 /* FilmSync.m in Sources */ = {isa = PBXBuildFile; fileRef = 09B400D819C1841700A4AF13 /* FilmSync.m */; };
 		09B400E619C1841700A4AF13 /* libFilmSync.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 09B400CE19C1841700A4AF13 /* libFilmSync.a */; };
 		09B400EC19C1841700A4AF13 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 09B400EA19C1841700A4AF13 /* InfoPlist.strings */; };
@@ -56,8 +55,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		0949613F1A0A189400FFCA49 /* FilmSyncWebService.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FilmSyncWebService.h; sourceTree = "<group>"; };
-		094961401A0A189400FFCA49 /* FilmSyncWebService.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FilmSyncWebService.m; sourceTree = "<group>"; };
 		09B400CE19C1841700A4AF13 /* libFilmSync.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libFilmSync.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		09B400D519C1841700A4AF13 /* FilmSync-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "FilmSync-Prefix.pch"; sourceTree = "<group>"; };
 		09B400D619C1841700A4AF13 /* FilmSync.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FilmSync.h; sourceTree = "<group>"; };
@@ -177,8 +174,6 @@
 			children = (
 				09B4010619C1891600A4AF13 /* RIOInterface.h */,
 				09B4010719C1891600A4AF13 /* RIOInterface.mm */,
-				0949613F1A0A189400FFCA49 /* FilmSyncWebService.h */,
-				094961401A0A189400FFCA49 /* FilmSyncWebService.m */,
 			);
 			name = Singletons;
 			sourceTree = "<group>";
@@ -227,7 +222,7 @@
 		09B400C619C1841700A4AF13 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0510;
+				LastUpgradeCheck = 0610;
 				ORGANIZATIONNAME = Fingent;
 			};
 			buildConfigurationList = 09B400C919C1841700A4AF13 /* Build configuration list for PBXProject "FilmSync" */;
@@ -284,7 +279,6 @@
 				09B4010319C1890C00A4AF13 /* CAXException.cpp in Sources */,
 				09B4010219C1890C00A4AF13 /* CADebugPrintf.cpp in Sources */,
 				09B4010919C1891600A4AF13 /* RIOInterface.mm in Sources */,
-				094961411A0A189400FFCA49 /* FilmSyncWebService.m in Sources */,
 				09B400D919C1841700A4AF13 /* FilmSync.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -393,7 +387,8 @@
 				DSTROOT = /tmp/FilmSync.dst;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "FilmSync/FilmSync-Prefix.pch";
-				IPHONEOS_DEPLOYMENT_TARGET = 7.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 7.1;
+				ONLY_ACTIVE_ARCH = NO;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -407,7 +402,7 @@
 				DSTROOT = /tmp/FilmSync.dst;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "FilmSync/FilmSync-Prefix.pch";
-				IPHONEOS_DEPLOYMENT_TARGET = 7.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 7.1;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -454,12 +449,6 @@
 		09B4017019C1CEDF00A4AF13 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = (
-					"$(ARCHS_STANDARD)",
-					armv7,
-					armv7s,
-					arm64,
-				);
 				IPHONEOS_DEPLOYMENT_TARGET = 7.1;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -469,12 +458,6 @@
 		09B4017119C1CEDF00A4AF13 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = (
-					"$(ARCHS_STANDARD)",
-					armv7,
-					armv7s,
-					arm64,
-				);
 				IPHONEOS_DEPLOYMENT_TARGET = 7.1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};

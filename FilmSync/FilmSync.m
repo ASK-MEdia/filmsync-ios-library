@@ -10,6 +10,17 @@
 #import "RIOInterface.h"
 
 
+#define kFilmSyncPrefKeySessionID   @"filmSyncPrefKeySessionID"
+
+// Log include the function name and source code line number in the log statement
+#ifdef FSW_DEBUG
+#define FSWDebugLog(fmt, ...) NSLog((@"Func: %s, Line: %d, " fmt), __PRETTY_FUNCTION__, __LINE__, ##__VA_ARGS__);
+#else
+#define FSWDebugLog(...)
+#endif
+
+
+//Constants
 #define kFrequency_Zero_18000       18000
 #define kFrequency_One_18100        18100
 #define kFrequency_Two_18200        18200
@@ -25,22 +36,6 @@
 #define kFrequency_Tail_19200       19200
 #define kFrequency_Correction_50    50
 
-/*
-int kFrequency_Zero_18000=18000;
-int kFrequency_One_18100=18100;
-int kFrequency_Two_18200=18200;
-int kFrequency_Three_18300=18300;
-int kFrequency_Four_18400=18400;
-int kFrequency_Five_18500=18500;
-int kFrequency_Six_18600=18600;
-int kFrequency_Seven_18700=18700;
-int kFrequency_Eight_18800=18800;
-int kFrequency_Nine_18900=18900;
-int kFrequency_Head_19000=19000;
-int kFrequency_Separator_19100=19100;
-int kFrequency_Tail_19200=19200;
-int kFrequency_Correction_50=50;
-*/
 
 @interface FilmSync ()
 {
@@ -51,18 +46,21 @@ int kFrequency_Correction_50=50;
     float previousFrequency;
     
     //Status Flags
-    BOOL isListeningForSource;
     BOOL isSourceDetected;
-    BOOL isSourceLost;
-    BOOL isMarkerDetected;
+    BOOL isRunning;
     
-    NSDate *sourceDetetionTime;
+    //Time of detection
+    NSDate *sourceDetectionTime;
+    //Timer for auto timeout
     NSTimer *sourceReadTimer;
     
-    //to store listening frequencies followed by header
+    //Store listening frequencies followed by header
     NSMutableArray *frequencyArray;
-    //to store markers strings (complete signal frequency sequence string)
-    NSMutableArray *markerArray;
+    
+    //Webserivce
+    NSString *apiSecret;    // API Secret (licensing number)
+    NSString *sessionID;    // Session ID , recived after authentication
+    NSString *baseURL;      // base URL for API communication
     
 }
 - (void) initializeRIO;
@@ -78,97 +76,107 @@ int kFrequency_Correction_50=50;
     {
         if (!sharedFilmSyncManager) {
             sharedFilmSyncManager = [[FilmSync alloc] init];
-            [sharedFilmSyncManager setTimeOut:120]; //default timeout 2 minutes
+            [sharedFilmSyncManager setTimeOut:5.2]; //default timeout 5.2 secs
             [sharedFilmSyncManager initializeRIO];
         }
         return sharedFilmSyncManager;
     }
 }
 
+#pragma mark -
+#pragma mark FilmSync Listener Methods
+
+// Initialize the listener
 - (void) initializeRIO
 {
     currentFrequency = 0;
     
     rioRef = [RIOInterface sharedInstance];
+    isRunning = NO;
     [rioRef setSampleRate:48000];
     [rioRef setFrequency:294];
     [rioRef initializeAudioSession];
 }
 
-
-- (void)startListener {
-    
-    isListeningForSource = YES;
-	[rioRef startListening:self];
+// Start Listener
+- (void)startListener
+{
+    [rioRef startListening:self];
+    isRunning = YES;
     [self.delegate listeningForSource];
-    
-    markerArray = [[NSMutableArray alloc] init];
-    
 }
 
-- (void)stopListener {
-	[rioRef stopListening];
-    isListeningForSource = NO;
+//Stop Listener
+- (void)stopListener
+{
+    [rioRef stopListening];
+    isRunning = NO;
 }
 
+// Check Listener state
+- (BOOL) isListenerRunning
+{
+    return isRunning;
+}
+
+// Frequency updated from engine
 - (void)frequencyChangedWithValue:(float)newFrequency
 {
     previousFrequency = currentFrequency;
-	currentFrequency = newFrequency;
-	[self performSelectorOnMainThread:@selector(checkFrequency) withObject:nil waitUntilDone:NO];
+    currentFrequency = newFrequency;
+    [self performSelectorOnMainThread:@selector(checkFrequency) withObject:nil waitUntilDone:NO];
 }
 
+// check/filter/store for required frequencies
 -(void)checkFrequency
 {
     
     if (currentFrequency > (kFrequency_Zero_18000 - kFrequency_Correction_50) && currentFrequency != previousFrequency)
     {
-        //if (isListeningForSource)
+        
+        if (currentFrequency > (kFrequency_Head_19000 - kFrequency_Correction_50) && currentFrequency <= (kFrequency_Head_19000 + kFrequency_Correction_50))
         {
+            [self.delegate sourceDetected];
             
-            if (currentFrequency > (kFrequency_Head_19000 - kFrequency_Correction_50) && currentFrequency <= (kFrequency_Head_19000 + kFrequency_Correction_50))
+            isSourceDetected = YES;
+            sourceDetectionTime = [NSDate date];
+            
+            if (frequencyArray !=nil)
             {
-                [self.delegate sourceDetected];
-                
-                isListeningForSource = NO;
-                isSourceDetected = YES;
-                sourceDetetionTime = [NSDate date];
-                
-                if (frequencyArray !=nil)
-                {
-                    frequencyArray = nil;
-                }
-                frequencyArray = [[NSMutableArray alloc] init];
-                NSString *codeStr = [self codeForFrequency:currentFrequency];
-                [frequencyArray addObject:[NSString stringWithFormat:@"%@",codeStr]];
-
-                if ([sourceReadTimer isValid])
-                {
-                    [sourceReadTimer invalidate];
-                    sourceReadTimer = nil;
-                }
-                sourceReadTimer = [NSTimer scheduledTimerWithTimeInterval:5.2f target:self selector:@selector(parseFrequencyArray) userInfo:nil repeats:NO];
+                frequencyArray = nil;
             }
-        }
-        //else
-        if (isSourceDetected)
-        {
+            frequencyArray = [[NSMutableArray alloc] init];
             NSString *codeStr = [self codeForFrequency:currentFrequency];
-            if (frequencyArray != nil)
+            [frequencyArray addObject:[NSString stringWithFormat:@"%@",codeStr]];
+            
+            if ([sourceReadTimer isValid])
             {
-                [frequencyArray addObject:[NSString stringWithFormat:@"%@",codeStr]];
+                [sourceReadTimer invalidate];
+                sourceReadTimer = nil;
             }
-            if (currentFrequency > (kFrequency_Tail_19200 - kFrequency_Correction_50) && currentFrequency < (kFrequency_Tail_19200 + kFrequency_Correction_50))
-            {//Tail tone received
-                [self parseFrequencyArray];
-                
-            }
+            sourceReadTimer = [NSTimer scheduledTimerWithTimeInterval:self.timeOut target:self selector:@selector(parseFrequencyArray) userInfo:nil repeats:NO];
+        }
+    }
+    //else
+    if (isSourceDetected)
+    {
+        NSString *codeStr = [self codeForFrequency:currentFrequency];
+        if (frequencyArray != nil)
+        {
+            [frequencyArray addObject:[NSString stringWithFormat:@"%@",codeStr]];
+        }
+        if (currentFrequency > (kFrequency_Tail_19200 - kFrequency_Correction_50) && currentFrequency < (kFrequency_Tail_19200 + kFrequency_Correction_50))
+        {//Tail tone received
+            [self parseFrequencyArray];
             
         }
         
     }
+    
+}
 }
 
+// Frequency mapper
 -(NSString *)codeForFrequency:(float)frequency
 {
     NSString *tone =@"";
@@ -232,9 +240,9 @@ int kFrequency_Correction_50=50;
     return tone;
 }
 
+// validate and precess recived frequency sequence (marker)
 -(void)parseFrequencyArray;
 {
-    
     if ([sourceReadTimer isValid])
     {
         [sourceReadTimer invalidate];
@@ -255,26 +263,25 @@ int kFrequency_Correction_50=50;
             [tempArray addObject:str];
             prevValue = str;
         }
-        
     }
     NSString *markerString = [[tempArray valueForKey:@"description"] componentsJoinedByString:@""];
     
     //Using String
     NSCharacterSet *doNotWant = [NSCharacterSet characterSetWithCharactersInString:@"HST"];
     NSString *trimmedStr = [[markerString componentsSeparatedByCharactersInSet:doNotWant] componentsJoinedByString:@""];
-
+    
     int CodeLen = (int)[trimmedStr length];
     if (CodeLen == 12)
     {//Code length is correct , now Check for marker
         
         //Format the code with separator
         /*NSMutableString *codeString = [NSMutableString stringWithString:trimmedStr];
-        [codeString insertString:@"." atIndex:3];
-        [codeString insertString:@"." atIndex:7];
-        [codeString insertString:@"." atIndex:11];*/
+         [codeString insertString:@"." atIndex:3];
+         [codeString insertString:@"." atIndex:7];
+         [codeString insertString:@"." atIndex:11];*/
         
         
-        [markerArray addObject:trimmedStr];
+        //[markerArray addObject:trimmedStr];
         [self.delegate markerDetected:trimmedStr];
     }
     else
@@ -284,130 +291,244 @@ int kFrequency_Correction_50=50;
     markerString = @"";
     [frequencyArray removeAllObjects];
     
-    isListeningForSource = YES;
     isSourceDetected = NO;
 }
 
--(void)AuthenticateWithServer
+
+#pragma mark -
+#pragma mark FilmSync Webservice APIs
+// Set API secret
+-(void)setAPISecret:(NSString *)ApiKey
 {
-    NSURL *URL = [NSURL URLWithString:@"http://10.10.2.90/filmsync/auth.json"];
+    apiSecret = ApiKey;
+    
+    //Store in preferances
+    NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
+    sessionID = [prefs stringForKey:kFilmSyncPrefKeySessionID];
+    
+    
+}
+
+// Set Base URL
+-(void)setConnectionURL:(NSString *)url
+{
+    //Remove white space and "/" from end of URL
+    url = [url stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    if([url hasSuffix:@"/"])
+    {
+        url = [url substringToIndex:[url length] - 1];
+    }
+    
+    baseURL = url;
+}
+
+// API and validator for Authenticate
+-(void)serverAPI_authenticate_CompletionHandler:(void (^)(NSString *status))completionHandler
+{
+    
+    NSDictionary *authDict = [self getSessionIDFromServer:apiSecret];
+    
+    NSString *authStatus = @"";
+    authStatus = [authDict objectForKey:@"status"];
+    if ([authStatus isEqualToString:@"active"])
+    {
+        sessionID = [authDict objectForKey:@"sessionid"];
+        
+        NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
+        [prefs setObject:sessionID forKey:kFilmSyncPrefKeySessionID];
+        [prefs synchronize];
+        
+        FSWDebugLog(@"Successful authentication");
+    }
+    else
+    {
+        sessionID = nil;
+        FSWDebugLog(@"Invalid API Secret");
+    }
+    
+    completionHandler(authStatus);
+}
+
+// API and validator for Get Card details
+-(void)serverAPI_getCard:(NSString *)cardID andCompletionHandler:(void (^)(NSDictionary* cardDict))completionHandler
+{
+    __block NSDictionary *cardDict = [self getCardFromServer:cardID];
+    NSString *sessionStatus = [cardDict objectForKey:@"session"];
+    if ([sessionStatus isEqualToString:@"active"])
+    {
+        FSWDebugLog(@"valid session");
+        completionHandler(cardDict);
+    }
+    else
+    {
+        FSWDebugLog(@"Re-authenticating session..");
+        __block NSString *stat =@"";
+        
+        [self serverAPI_authenticate_CompletionHandler:^(NSString *status)
+         {
+             stat = status;
+         }];
+        if ([stat isEqualToString:@"active"])
+        {
+            cardDict = [self getCardFromServer:cardID];
+            
+        }
+        else
+        {
+            FSWDebugLog(@"Invalid sessionID and API Secret");
+            cardDict = nil;
+        }
+        completionHandler(cardDict);
+    }
+}
+
+// API and validator for Get all cards for project id
+-(void)serverAPI_getAllCardsForProject:(NSString *)projectID andCompletionHandler:(void (^)(NSDictionary* projectDict))completionHandler
+{
+    __block NSDictionary *cardDict = [self getAllCardsForProject:projectID];
+    NSString *sessionStatus = [cardDict objectForKey:@"session"];
+    if ([sessionStatus isEqualToString:@"active"])
+    {
+        FSWDebugLog(@"valid session");
+        completionHandler(cardDict);
+    }
+    else
+    {
+        FSWDebugLog(@"Re-authenticating session..");
+        __block NSString *stat =@"";
+        
+        [self serverAPI_authenticate_CompletionHandler:^(NSString *status)
+         {
+             stat = status;
+         }];
+        
+        if ([stat isEqualToString:@"active"])
+        {
+            cardDict = [self getAllCardsForProject:projectID];
+            
+        }
+        else
+        {
+            FSWDebugLog(@"returning Invalid sessionID and API Secret");
+            cardDict = nil;
+        }
+        completionHandler(cardDict);
+    }
+}
+
+// Websevice : Authentication
+-(NSDictionary *)getSessionIDFromServer:(NSString *)authKey
+{
+    NSString *URLStr = [NSString stringWithFormat:@"%@/api/handshake/%@",baseURL,apiSecret];
+    NSURL *URL = [NSURL URLWithString:URLStr];
+    NSURLRequest *request = [NSURLRequest requestWithURL:URL];
+    // Send a synchronous request
+    NSURLResponse * response = nil;
+    NSError * error = nil;
+    NSData * data = [NSURLConnection sendSynchronousRequest:request
+                                          returningResponse:&response
+                                                      error:&error];
+    NSDictionary *jsonDict = nil;
+    if (error == nil)
+    {
+        // Parse data here
+        NSError *parseError = nil;
+        jsonDict = [NSJSONSerialization
+                    JSONObjectWithData:data
+                    options:NSJSONReadingMutableLeaves
+                    error:&parseError];
+        if (parseError)
+        {
+            FSWDebugLog(@"Server Authentication parseError :%@",parseError);
+        }
+    }
+    
+    return jsonDict;
+}
+
+// Webservice : Get Card data
+-(NSDictionary *)getCardFromServer:(NSString *)cardID
+{
+    NSString *URLStr = [NSString stringWithFormat:@"%@/api/getacard/%@/%@",baseURL,cardID,sessionID];
+    NSURL *URL = [NSURL URLWithString:URLStr];
     NSURLRequest *request = [NSURLRequest requestWithURL:URL];
     
-    NSURLSession *session = [NSURLSession sharedSession];
-    NSURLSessionDataTask *task = [session dataTaskWithRequest:request
-                                            completionHandler:
-                                  ^(NSData *data, NSURLResponse *response, NSError *error) {
-                                      
-                                      
-                                      NSDictionary *jsonDict = [NSJSONSerialization
-                                                                JSONObjectWithData:data
-                                                                options:NSJSONReadingMutableLeaves
-                                                                error:&error];
-                                      
-                                      NSLog(@"jsonDict :%@",jsonDict);
-                                      NSLog(@"error :%@",error);
-                                      
-                                      if (!error)
-                                      {
-                                          NSUserDefaults *defaults =  [NSUserDefaults standardUserDefaults];
-                                          [defaults setObject:@"135" forKey:@"projectCode"];
-                                          [defaults synchronize];
-                                      }
-                                  }];
-    
-    [task resume];
-    
-    NSUserDefaults *defaults =  [NSUserDefaults standardUserDefaults];
-    NSLog(@"defaults :%@",[defaults stringForKey:@"projectCode"]);
-    
-    /*NSOperationQueue *queue = [[NSOperationQueue alloc] init];
-    
-    [NSURLConnection sendAsynchronousRequest:urlRequest queue:queue completionHandler:^(NSURLResponse *response, NSData *data, NSError *error)
+    NSURLResponse * response = nil;
+    NSError * error = nil;
+    NSDictionary *jsonDict = nil;
+    NSData * data = [NSURLConnection sendSynchronousRequest:request
+                                          returningResponse:&response
+                                                      error:&error];
+    if (error == nil)
     {
-        //the NSData in the completion handler is where your data is downloaded.
-    }];*/
+        // Parse data here
+        NSError *parseError = nil;
+        jsonDict = [NSJSONSerialization
+                    JSONObjectWithData:data
+                    options:NSJSONReadingMutableLeaves
+                    error:&parseError];
+        if (parseError == nil)
+        {
+            FSWDebugLog(@"Server getCardFromServer parseError :%@",parseError);
+        }
+    }
+    return jsonDict;
 }
 
-
-//SDK Methods
-//Returns the number of cards to be delivered during the entire duration of the source content (via JSON count of objects). Number
--(int) getTotalCards
+// Websevice : get all cards for projectID
+-(NSDictionary *)getAllCardsForProject:(NSString *)projectID
 {
-    int cardsCount;
+    NSString *URLStr = [NSString stringWithFormat:@"%@/api/getcardsforproject/%@/%@",baseURL,projectID,sessionID];
+    NSURL *URL = [NSURL URLWithString:URLStr];
+    NSURLRequest *request = [NSURLRequest requestWithURL:URL];
     
-    
-    return cardsCount;
+    NSURLResponse * response = nil;
+    NSError * error = nil;
+    NSDictionary *jsonDict = nil;
+    NSData * data = [NSURLConnection sendSynchronousRequest:request
+                                          returningResponse:&response
+                                                      error:&error];
+    if (error == nil)
+    {
+        // Parse data here
+        NSError *parseError = nil;
+        jsonDict = [NSJSONSerialization
+                    JSONObjectWithData:data
+                    options:NSJSONReadingMutableLeaves
+                    error:&parseError];
+        
+        if (parseError != nil)
+        {
+            FSWDebugLog(@"Server getAllCardsForProject parseError :%@",parseError);
+        }
+    }
+    return jsonDict;
 }
 
-//Returns the numerical id of current marker number detected from video source. A 32bit number . Returns null if no source detected.
--(NSString *)getCurrentCard
+// Webservice/Validator sessionID
+-(NSString *)checkSessionID
 {
-    if ([markerArray count] > 0)
+    if (sessionID != nil )
     {
-        NSString *currentCard = [markerArray lastObject];
-        return currentCard;
+        return sessionID;
     }
     else
     {
-        return nil;
+        __block NSString *stat = @"";
+        [self serverAPI_authenticate_CompletionHandler:^(NSString *status)
+         {
+             stat = status;
+         }];
+        if ([stat isEqualToString:@"invalid"])
+        {
+            FSWDebugLog(@"Auth invalid");
+        }
+        else
+        {
+            FSWDebugLog(@"Auth valid");
+        }
     }
+    return sessionID;
 }
-
-
-//Returns the numerical id of previous marker number detected from the source content. This may not be in numerical order as user can move throughout the video source. If first marker, returns null.
--(NSString *)getPreviousCard
-{
-    if ([markerArray count] > 1)
-    {
-        NSString *prevCard = [markerArray objectAtIndex:([markerArray count] - 2)];
-        return prevCard;
-    }
-    else
-    {
-        return nil;
-    }
-}
-
-
-//Returns array of hzs of the last detected signal. Length max of 2.) ex. [18200, 19400]
--(NSArray *)getTonesDetected
-{
-    NSArray *tonesArray = [[NSArray alloc] init];
-    
-    return tonesArray;
-}
-
-
-//Returns the ID of the signal detected
--(NSString *)getSignalDetected
-{
-    NSString *signalStr = @"";
-    
-    return signalStr;
-}
-
-
-/** retrieve decode results for last scanned image/frame.
- * @returns the symbol set result container or NULL if no results are
- * available
- * @note the returned symbol set has its reference count incremented;
- * ensure that the count is decremented after use
- * @since 0.10
- */
-
-/** process from the video stream until a result is available,
- * or the timeout (in milliseconds) expires.
- * specify a timeout of -1 to scan indefinitely
- * (zbar_processor_set_active() may still be used to abort the scan
- * from another thread).
- * if the library window is visible, video display will be enabled.
- * @note that multiple results may still be returned (despite the
- * name).
- * @returns >0 if symbols were successfully decoded,
- * 0 if no symbols were found (ie, the timeout expired)
- * or -1 if an error occurs
- */
-
-
 
 @end

@@ -166,8 +166,6 @@ OSStatus RenderFFTCallback (void					*inRefCon,
 		
 		// Update the UI with our newly acquired frequency value.
 		[THIS->listener frequencyChangedWithValue:bin*(THIS->sampleRate/bufferCapacity)];
-		//printf("Dominant frequency: %f   bin: %d \n", bin*(THIS->sampleRate/bufferCapacity), bin);
-        //printf("inTimeStamp:%i ", inTimeStamp);
 	}
 	
 	
@@ -241,7 +239,6 @@ void ConvertInt16ToFloat(RIOInterface* THIS, void *buf, float *outputBuf, size_t
         NSLog(@"AVAudioSession setActive failed");
     }
     
-    //[session setPreferredHardwareSampleRate:sampleRate error:&err];
 	[myAudioSession setPreferredSampleRate:sampleRate error:&theError];
 	[myAudioSession setCategory:AVAudioSessionCategoryPlayAndRecord error:&theError];
 	[myAudioSession setActive:YES error:&theError];
@@ -255,7 +252,6 @@ void ConvertInt16ToFloat(RIOInterface* THIS, void *buf, float *outputBuf, size_t
     // only one available input -- the built in microphone.
     NSArray* inputs = [myAudioSession availableInputs];
     
-    //NSLog(@"inputs :%@",inputs);
     
     // Locate the Port corresponding to the built-in microphone.
     AVAudioSessionPortDescription* builtInMicPort = nil;
@@ -276,7 +272,6 @@ void ConvertInt16ToFloat(RIOInterface* THIS, void *buf, float *outputBuf, size_t
     AVAudioSessionDataSourceDescription* frontDataSource = nil;
     for (AVAudioSessionDataSourceDescription* source in builtInMicPort.dataSources)
     {
-        //NSLog(@"source:%@",source);
         if ([source.orientation isEqual:AVAudioSessionOrientationTop] || [source.orientation isEqual:AVAudioSessionOrientationBack])
         {
             frontDataSource = source;
@@ -286,9 +281,6 @@ void ConvertInt16ToFloat(RIOInterface* THIS, void *buf, float *outputBuf, size_t
     
     if (frontDataSource)
     {
-        //NSLog(@"Currently selected source is \"%@\" for port \"%@\"", builtInMicPort.selectedDataSource.dataSourceName, builtInMicPort.portName);
-        //NSLog(@"Attempting to select source \"%@\" on port \"%@\"", frontDataSource, builtInMicPort.portName);
-        
         // Set a preference for the front data source.
         theError = nil;
         result = [builtInMicPort setPreferredDataSource:frontDataSource error:&theError];
