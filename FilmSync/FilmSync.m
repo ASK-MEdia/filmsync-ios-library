@@ -10,8 +10,6 @@
 #import "RIOInterface.h"
 
 
-#define kFilmSyncPrefKeySessionID   @"filmSyncPrefKeySessionID"
-
 // Log include the function name and source code line number in the log statement
 #ifdef FSW_DEBUG
 #define FSWDebugLog(fmt, ...) NSLog((@"Func: %s, Line: %d, " fmt), __PRETTY_FUNCTION__, __LINE__, ##__VA_ARGS__);
@@ -21,6 +19,8 @@
 
 
 //Constants
+#define kFilmSyncPrefKeySessionID   @"filmSyncPrefKeySessionID"
+
 #define kFrequency_Zero_18000       18000
 #define kFrequency_One_18100        18100
 #define kFrequency_Two_18200        18200
@@ -119,7 +119,7 @@
     return isRunning;
 }
 
-// Frequency updated from engine
+// Frequency updated from listner engine
 - (void)frequencyChangedWithValue:(float)newFrequency
 {
     previousFrequency = currentFrequency;
@@ -130,10 +130,10 @@
 // check/filter/store for required frequencies
 -(void)checkFrequency
 {
-    
+    // Filter frequencies above 18000
     if (currentFrequency > (kFrequency_Zero_18000 - kFrequency_Correction_50) && currentFrequency != previousFrequency)
     {
-        
+        //Check for header tone
         if (currentFrequency > (kFrequency_Head_19000 - kFrequency_Correction_50) && currentFrequency <= (kFrequency_Head_19000 + kFrequency_Correction_50))
         {
             [self.delegate sourceDetected];
@@ -157,9 +157,9 @@
             sourceReadTimer = [NSTimer scheduledTimerWithTimeInterval:self.timeOut target:self selector:@selector(parseFrequencyArray) userInfo:nil repeats:NO];
         }
     }
-    //else
+    
     if (isSourceDetected)
-    {
+    {//Once header is received listening for the marker tones
         NSString *codeStr = [self codeForFrequency:currentFrequency];
         if (frequencyArray != nil)
         {
@@ -240,7 +240,7 @@
     return tone;
 }
 
-// validate and precess recived frequency sequence (marker)
+// validate and process received frequency sequence (marker)
 -(void)parseFrequencyArray;
 {
     if ([sourceReadTimer isValid])
@@ -266,7 +266,7 @@
     }
     NSString *markerString = [[tempArray valueForKey:@"description"] componentsJoinedByString:@""];
     
-    //Using String
+    //Removing the Extra codes (Head/Separator/Tail) and Cleaning the marker.
     NSCharacterSet *doNotWant = [NSCharacterSet characterSetWithCharactersInString:@"HST"];
     NSString *trimmedStr = [[markerString componentsSeparatedByCharactersInSet:doNotWant] componentsJoinedByString:@""];
     
@@ -280,8 +280,6 @@
          [codeString insertString:@"." atIndex:7];
          [codeString insertString:@"." atIndex:11];*/
         
-        
-        //[markerArray addObject:trimmedStr];
         [self.delegate markerDetected:trimmedStr];
     }
     else
@@ -297,7 +295,7 @@
 
 #pragma mark -
 #pragma mark FilmSync Webservice APIs
-// Set API secret
+// Set API secret from application
 -(void)setAPISecret:(NSString *)ApiKey
 {
     apiSecret = ApiKey;
@@ -309,7 +307,7 @@
     
 }
 
-// Set Base URL
+// Set Base URL from application
 -(void)setConnectionURL:(NSString *)url
 {
     //Remove white space and "/" from end of URL
@@ -331,7 +329,7 @@
     NSString *authStatus = @"";
     authStatus = [authDict objectForKey:@"status"];
     if ([authStatus isEqualToString:@"active"])
-    {
+    {//got sessionID from server
         sessionID = [authDict objectForKey:@"sessionid"];
         
         NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
@@ -341,11 +339,11 @@
         FSWDebugLog(@"Successful authentication");
     }
     else
-    {
+    {//sessionID not received from server
         sessionID = nil;
         FSWDebugLog(@"Invalid API Secret");
     }
-    
+    //returning authentication status through completion handler
     completionHandler(authStatus);
 }
 
@@ -355,29 +353,31 @@
     __block NSDictionary *cardDict = [self getCardFromServer:cardID];
     NSString *sessionStatus = [cardDict objectForKey:@"session"];
     if ([sessionStatus isEqualToString:@"active"])
-    {
+    {//session is valid and card data received from server
         FSWDebugLog(@"valid session");
         completionHandler(cardDict);
     }
     else
-    {
+    {//session expired
         FSWDebugLog(@"Re-authenticating session..");
         __block NSString *stat =@"";
-        
+        //try reauthenticating session
         [self serverAPI_authenticate_CompletionHandler:^(NSString *status)
          {
              stat = status;
          }];
+        
         if ([stat isEqualToString:@"active"])
-        {
+        {//session is valid and card data received from server
             cardDict = [self getCardFromServer:cardID];
             
         }
         else
-        {
+        {//didn't get a valid session
             FSWDebugLog(@"Invalid sessionID and API Secret");
             cardDict = nil;
         }
+        //returning cardDict through completion handler
         completionHandler(cardDict);
     }
 }
@@ -388,7 +388,7 @@
     __block NSDictionary *cardDict = [self getAllCardsForProject:projectID];
     NSString *sessionStatus = [cardDict objectForKey:@"session"];
     if ([sessionStatus isEqualToString:@"active"])
-    {
+    {//session is valid and project data received from server
         FSWDebugLog(@"valid session");
         completionHandler(cardDict);
     }
@@ -396,22 +396,23 @@
     {
         FSWDebugLog(@"Re-authenticating session..");
         __block NSString *stat =@"";
-        
+         //try reauthenticating session
         [self serverAPI_authenticate_CompletionHandler:^(NSString *status)
          {
              stat = status;
          }];
         
         if ([stat isEqualToString:@"active"])
-        {
+        {//session is valid and project data received from server
             cardDict = [self getAllCardsForProject:projectID];
             
         }
         else
-        {
+        {//didn't get a valid session
             FSWDebugLog(@"returning Invalid sessionID and API Secret");
             cardDict = nil;
         }
+        //returning cardDict through completion handler
         completionHandler(cardDict);
     }
 }
@@ -505,30 +506,5 @@
     return jsonDict;
 }
 
-// Webservice/Validator sessionID
--(NSString *)checkSessionID
-{
-    if (sessionID != nil )
-    {
-        return sessionID;
-    }
-    else
-    {
-        __block NSString *stat = @"";
-        [self serverAPI_authenticate_CompletionHandler:^(NSString *status)
-         {
-             stat = status;
-         }];
-        if ([stat isEqualToString:@"invalid"])
-        {
-            FSWDebugLog(@"Auth invalid");
-        }
-        else
-        {
-            FSWDebugLog(@"Auth valid");
-        }
-    }
-    return sessionID;
-}
 
 @end
