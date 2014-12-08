@@ -1,9 +1,9 @@
 //
 //  RIOInterface.m
-//  SafeSound
+//  AudioTools
 //
-//  Created by Demetri Miller on 10/22/2010.
-//  Copyright 2010 Demetri Miller. All rights reserved.
+//  Created by Abdusha on 9/11/14.
+//  Copyright (c) 2014 Fingent. All rights reserved.
 //
 
 #import "RIOInterface.h"

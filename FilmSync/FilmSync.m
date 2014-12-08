@@ -174,7 +174,7 @@
     }
     
 }
-}
+
 
 // Frequency mapper
 -(NSString *)codeForFrequency:(float)frequency
